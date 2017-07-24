@@ -3,7 +3,6 @@
 import numpy as np
 import cv2
 #from homography import homography
-#import copy
 
 
 # 画像分割
@@ -25,28 +24,46 @@ def detectMarkers_pos(img, grid_w, grid_h):
     dictionary = aruco.getPredefinedDictionary(aruco.DICT_4X4_50)
     # 座標, ID
     corners, ids, rejectedImgPoints = aruco.detectMarkers(img, dictionary)
+    #print (corners)
 
     # 配列を初期化
     sPoints = [ [[0]*2] * (grid_w+1) ] * (grid_h+1)
+    #sPoints = [ [[0]*2] * (grid_w+1) ] * (grid_h+1)  '''マーカーの4点を使用'''
     np.array(sPoints)
     #print (len(sPoints[0]))
 
-    tmp = [[0]*2] * 48
+    tmp = [[0]*2] * ((grid_w+1)*(grid_h+1))
 
     for i, corner in enumerate( corners ):
         points = corner[0].astype(np.int32)
-        cv2.polylines(img, [points], True, (0,255,0), 2)
-        cv2.putText(img, str(ids[i][0]), tuple(points[0]), cv2.FONT_HERSHEY_PLAIN, 2,(0,0,255), 2)
+        #print (points)
+        #cv2.polylines(img, [points], True, (0,255,0), 2)
+        #cv2.putText(img, str(ids[i][0]), tuple(points[0]), cv2.FONT_HERSHEY_PLAIN, 2,(0,0,255), 2)
 
         n = ids[i][0]
-        tmp[n] = points[0]
+        #tmp[n] = points[0]  # point[0] マーカーの左上の座標
+        '''マーカーの4点を使用'''
+        w = int((grid_w + 1) / 2)
+        h = int((grid_h + 1) / 2)
+        tmp[int(n/w) * w * 4 + (n%w * 2)] = points[0]
+        tmp[int(n/w) * w * 4 + (n%w * 2) + 1] = points[1] + [1, 0]
+        tmp[int(n/w) * w * 4 + (n%w * 2) + w*2] = points[3] + [0, 1]
+        tmp[int(n/w) * w * 4 + (n%w * 2) + w*2 + 1] = points[2] + [1, 1]
+        #print (n)
+        #print (tmp[int(n/w) * w * 4 + (n%w * 2)])
+        #print (tmp[(int(n/w) * w * 4 + (n%w * 2) + 1)])
+        #print (tmp[(int(n/w) * w * 4 + (n%w * 2) + w*2)])
+        #print (tmp[(int(n/w) * w * 4 + (n%w * 2) + w*2 + 1)])
+
         #sPoints[int(n/(grid_w+1))][n%(grid_w+1)] = points[0]
         #print (str(int(n/(grid_w+1)))+str(n%(grid_w+1)))
         #print (points[0])
-
+    #print (tmp)
     for y in range(grid_h+1):
         sPoints[y] = tmp[y*(grid_w+1):(y+1)*(grid_w+1)]
+        #print (sPoints[y])
 
+    #print (sPoints)
     return sPoints
 
 
@@ -83,6 +100,7 @@ def homography(cap, src_img, rect):
 def overlayOnPart(frame, overlay_img, grid_w, grid_h):
     # マーカーから座標取得
     marker_pos = detectMarkers_pos(frame, grid_w, grid_h)
+    #print (marker_pos)
     # 射影変換
     for y in range(grid_h):
         for x in range(grid_w):
@@ -92,11 +110,35 @@ def overlayOnPart(frame, overlay_img, grid_w, grid_h):
                 marker_pos[y][x],
                 marker_pos[y+1][x],
                 marker_pos[y+1][x+1]
+                #marker_pos[y][x+1] + [1, -1],
+                #marker_pos[y][x] + [-1, -1],
+                #marker_pos[y+1][x] + [-1, 2],
+                #marker_pos[y+1][x+1] + [1, 2]
             ])
+            #print (str(x)+str(y))
+            #print (rect[0])
+            #print (rect[1])
+            #print (rect[2])
+            #print (rect[3])
+
             # rectに(0,0)があればpass
             if [0,0] in rect:
                 pass
+            #elif [1, -1] in rect:
+            #    pass
+            #elif [-1, -1] in rect:
+            #    pass
+            #elif [-1, 2] in rect:
+            #    pass
+            #elif [1, 2] in rect:
+            #    pass
             else:
+                rect = rect + np.array([[1, -1], [-1, -1], [-1, 2], [1, 2]])
+                '''print (str(x)+str(y))
+                print (rect[0])
+                print (rect[1])
+                print (rect[2])
+                print (rect[3])'''
                 frame = homography(frame, split_img[y][x], rect)
     return frame
 
@@ -107,24 +149,26 @@ if __name__ == '__main__':
     # オーバーレイ用の画像
     overlay_img = cv2.imread('neko.png', -1)
     # 画像分割
-    grid_w, grid_h = 5, 7
+    #grid_w, grid_h = 5, 7
+    '''マーカーの4点を使用'''
+    grid_w, grid_h = 11, 15
     split_img = img_split(overlay_img, grid_w, grid_h)
     #for y in range(grid_h):
     #    for x in range(grid_w):
     #        cv2.imshow(str(x)+str(y), dst_img[y][x])
 
 
-    '''# 画像テスト
-    filename = 'marker.png'
+    # 画像テスト
+    '''filename = 'marker.png'
     #filename = 'test.png'
     img = cv2.imread(filename)
     img = overlayOnPart(img, overlay_img, grid_w, grid_h)
     cv2.imshow('frame', img)
     cv2.waitKey(0)
-    cv2.destroyAllWindows()'''
+    cv2.destroyAllWindows()
 
 
-    # カメラのID
+    '''# カメラのID
     DEVICE_ID = 0
     # カメラ映像取得
     cap = cv2.VideoCapture(DEVICE_ID)
@@ -148,4 +192,3 @@ if __name__ == '__main__':
     # When everything done, release the capture
     cap.release()
     cv2.destroyAllWindows()
-    #print (corners)
